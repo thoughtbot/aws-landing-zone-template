@@ -1,0 +1,22 @@
+#!/bin/sh
+
+set -e
+
+if [ -f config.env ]; then
+  export $(xargs < config.env)
+fi
+
+cat "$1" \
+  | sed "s/__ACCOUNT_EMAIL_PREFIX__/$ACCOUNT_EMAIL_PREFIX/g" \
+  | sed "s/__ACCOUNT_EMAIL_SUFFIX__/$ACCOUNT_EMAIL_SUFFIX/g" \
+  | sed "s/__GITHUB_ORG__/$GITHUB_ORGANIZATION/g" \
+  | sed "s/__INFRA_REPO__/$INFRA_REPO/g" \
+  | sed "s/__LANDING_ZONE__/$AWS_LANDING_ZONE/g" \
+  | sed "s/__MANAGEMENT_ACCOUNT_ID__/$AWS_ACCOUNT_ID/g" \
+  | sed "s/__REGION__/$AWS_REGION/g" \
+  | sed "s/__SHARED__/$SHARED_OU/g" \
+  | sed "s/__USER_EMAIL__/$USER_EMAIL/g" \
+  | sed "s/__USER_FIRST_NAME__/$USER_FIRST_NAME/g" \
+  | sed "s/__USER_LAST_NAME__/$USER_LAST_NAME/g" \
+  | sed "s/__WORKLOADS__/$WORKLOADS_OU/g" \
+  > "$2"

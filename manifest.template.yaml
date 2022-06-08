@@ -1,0 +1,68 @@
+---
+region: __REGION__
+version: 2021-03-15
+
+resources:
+
+- name: SpotServiceLinkedRole
+  description: Ensure the service-linked role exists for EC2 Spot
+  resource_file: templates/service-linked-role.yaml
+  parameters:
+  - parameter_key: AWSServiceName
+    parameter_value: spot.amazonaws.com
+  deploy_method: stack_set
+  deployment_targets:
+    accounts:
+    - GitHubRunner
+  regions:
+  - __REGION__
+
+- name: GitHubRunners
+  description: Resources necessary to deploy self-hosted GitHub runners
+  resource_file: templates/github-runner-foundation.yaml
+  parameters:
+  - parameter_key: Repository
+    parameter_value: __GITHUB_ORG__/__INFRA_REPO__
+  deploy_method: stack_set
+  deployment_targets:
+    accounts:
+    - Operations
+  regions:
+  - __REGION__
+  export_outputs:
+  - name: /Customizations/GitHubRunners/RunnerIAMRoleArn
+    value: $[output_GitHubActionRoleArn]
+
+- name: VPC
+  description: VPC with public and private subnets
+  resource_file: templates/vpc.yaml
+  parameters:
+  - parameter_key: EnvironmentName
+    parameter_value: Operations
+  - parameter_key: VpcCIDR
+    parameter_value: 10.0.0.0/16
+  deploy_method: stack_set
+  deployment_targets:
+    accounts:
+    - Operations
+  regions:
+  - __REGION__
+
+- name: TerraformSpokeAccount
+  description: Resources required to execute Terraform plans in an AWS account
+  resource_file: templates/terraform-spoke-account.yaml
+  deploy_method: stack_set
+  deployment_targets:
+    accounts:
+    - Operations
+    organizational_units:
+    - __WORKLOADS__
+  parameters:
+  - parameter_key: CICDPrincipal
+    parameter_value: $[alfred_ssm_/Customizations/GitHubRunners/RunnerIAMRoleArn]
+  - parameter_key: Repository
+    parameter_value: __GITHUB_ORG__/__INFRA_REPO__
+  - parameter_key: SSOPermissionSet
+    parameter_value: AWSAdministratorAccess
+  regions:
+  - __REGION__

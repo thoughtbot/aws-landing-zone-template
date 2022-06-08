@@ -1,0 +1,132 @@
+#!/bin/sh
+
+set -e
+
+if ! command -v aws > /dev/null; then
+  echo "Please install the AWS cli and try again"
+  exit 1
+fi
+
+if [ -f config.env ]; then
+  export $(xargs < config.env)
+fi
+
+STACK_NAME="aws-control-tower-customizations"
+STACK_URL="https://s3.amazonaws.com/solutions-reference/customizations-for-aws-control-tower/latest/custom-control-tower-initiation.template"
+
+echo "Checking for customizations stack..."
+DEPLOYED_STACK=$(aws cloudformation list-stacks \
+  --query "StackSummaries[?StackName=='$STACK_NAME' && StackStatus!='DELETE_COMPLETE'].StackName" \
+  --output text)
+
+if [ "$DEPLOYED_STACK" = "$STACK_NAME" ]; then
+  echo "Found customizations stack: $STACK_NAME"
+else
+  echo "Customizations stack is not deployed."
+  printf "%s" "Deploy now? (y/n): "
+  IFS= read -r line
+
+  if [ "$line" = "y" ]; then
+    echo "Creating customizations stack..."
+    STACK_ID=$(aws cloudformation create-stack \
+      --region "$AWS_HOME_REGION" \
+      --stack-name $STACK_NAME \
+      --template-url "$STACK_URL" \
+      --enable-termination-protection \
+      --parameters "ParameterKey=PipelineApprovalEmail,ParameterValue=" \
+      --capabilities CAPABILITY_NAMED_IAM \
+      --tags "Key=Repository,Value=$GITHUB_ORGANIZATION/$LANDING_ZONE_REPO" \
+      --query StackId \
+      --output text)
+    echo "Created stack $STACK_ID"
+    echo "Waiting for stack completion..."
+    aws cloudformation wait stack-create-complete --stack-name "$STACK_NAME"
+    echo "Stack is complete."
+  else
+    echo "Aborting." >&2
+    exit
+  fi
+fi
+
+echo "Finding administrator role..."
+IAM_ROLE_ARNS=$(aws \
+  iam \
+  list-roles \
+  --query 'Roles[*].[Arn]' \
+  --output text)
+ADMIN_ROLE=$(echo "$IAM_ROLE_ARNS" | grep AWSAdministratorAccess)
+
+if [ -z "$ADMIN_ROLE" ]; then
+  echo "Unable to find the SSO administrator role." >&2
+  exit 1
+fi
+
+echo "Found role: $ADMIN_ROLE"
+
+echo "Finding encryption key for customized package..."
+PACKAGE_KEY=$(aws \
+  kms \
+  list-aliases \
+  --query "Aliases[?AliasName=='alias/CustomControlTowerKMSKey'].[TargetKeyId]" \
+  --output text)
+echo "Found key: $PACKAGE_KEY"
+
+printkeypolicy() {
+  cat <<-JSON
+{
+  "Sid": "Allow uploading custom package",
+  "Effect": "Allow",
+  "Principal": {
+    "AWS": "$ADMIN_ROLE"
+  },
+  "Action": [
+    "kms:Encrypt",
+    "kms:Decrypt",
+    "kms:ReEncrypt*",
+    "kms:GenerateDataKey*",
+    "kms:DescribeKey"
+  ],
+  "Resource": "*"
+}
+JSON
+}
+
+echo "Checking key permissions..."
+KEY_POLICY=$(aws \
+  kms \
+  get-key-policy \
+  --key-id "$PACKAGE_KEY" \
+  --policy-name default \
+  --output text)
+if ! echo "$KEY_POLICY" | grep -q "$ADMIN_ROLE"; then
+  echo "You don't have access to the key."
+  printf "%s" "Grant yourself permission? (y/n) "
+  IFS= read -r line
+
+  if [ "$line" != "y" ]; then
+    echo "Aborting." >&2
+    exit
+  fi
+
+  if ! command -v jq > /dev/null; then
+    echo "Install jq in order to patch the key policy."
+    exit 1
+  fi
+
+  append=$(printkeypolicy)
+
+  echo "Generating patch..."
+  policy=$(echo "$KEY_POLICY" | \
+    jq --arg role "$ADMIN_ROLE" ".Statement |= . + [$append]")
+
+  echo "Updating policy..."
+  policy_id=$(aws \
+    kms \
+    put-key-policy \
+    --key-id "$PACKAGE_KEY" \
+    --policy-name default \
+    --policy "$policy" \
+    --query ID \
+    --output text)
+  echo "Patched policy $policy_id"
+fi

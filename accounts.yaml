@@ -1,0 +1,136 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Provision accounts using Control Tower account factory
+
+Parameters:
+  AccountEmailPrefix:
+    Description: "Prefix to apply to account emails"
+    Type: String
+    AllowedPattern : "[^\\s@]+"
+  AccountEmailSuffix:
+    Description: "Prefix to apply to account emails"
+    Type: String
+    AllowedPattern : "[^\\s@]*@[^\\s@]+\\.[^\\s@]+"
+  SSOUserFirstName:
+    Description:  "SSO user first name."
+    Type: String
+    AllowedPattern : ".+"
+  SSOUserLastName:
+    Description:  "SSO user last name."
+    Type: String
+    AllowedPattern : ".+"
+  SSOUserEmail:
+    Description: "SSO user email. A new SSO user will be created for this email if it does not exist. This SSO user will be associated with new accounts."
+    Type: String
+    AllowedPattern : "[^\\s@]+@[^\\s@]+\\.[^\\s@]+"
+  SharedOrganizationalUnit:
+    Description: "Managed organizational unit. The accounts will be placed under this Organizational Unit."
+    Type: String
+  WorkloadsOrganizationalUnit:
+    Description: "Managed organizational unit. The accounts will be placed under this Organizational Unit."
+    Type: String
+  ProvisioningArtifactId:
+    Description: ID the the product artifact/version
+    Type: String
+    AllowedPattern : ".+"
+  ProvisioningProductId:
+    Description: ID the the product
+    Type: String
+    AllowedPattern : ".+"
+
+Resources:
+  OperationsAccount:
+    Type: AWS::ServiceCatalog::CloudFormationProvisionedProduct
+    Properties:
+      ProductId: !Ref ProvisioningProductId
+      ProvisionedProductName: Operations
+      ProvisioningArtifactId: !Ref ProvisioningArtifactId
+      ProvisioningParameters:
+      - Key: AccountName
+        Value: Operations
+      - Key: AccountEmail
+        Value: !Sub "${AccountEmailPrefix}operations${AccountEmailSuffix}"
+      - Key: SSOUserFirstName
+        Value: !Ref SSOUserFirstName
+      - Key: SSOUserLastName
+        Value: !Ref SSOUserLastName
+      - Key: SSOUserEmail
+        Value: !Ref SSOUserEmail
+      - Key: ManagedOrganizationalUnit
+        Value: !Ref SharedOrganizationalUnit
+  SandboxAccount:
+    Type: AWS::ServiceCatalog::CloudFormationProvisionedProduct
+    Properties:
+      ProductId: !Ref ProvisioningProductId
+      ProvisionedProductName: Sandbox
+      ProvisioningArtifactId: !Ref ProvisioningArtifactId
+      ProvisioningParameters:
+      - Key: AccountName
+        Value: Sandbox
+      - Key: AccountEmail
+        Value: !Sub "${AccountEmailPrefix}sandbox${AccountEmailSuffix}"
+      - Key: SSOUserFirstName
+        Value: !Ref SSOUserFirstName
+      - Key: SSOUserLastName
+        Value: !Ref SSOUserLastName
+      - Key: SSOUserEmail
+        Value: !Ref SSOUserEmail
+      - Key: ManagedOrganizationalUnit
+        Value: !Ref WorkloadsOrganizationalUnit
+  ProductionAccount:
+    Type: AWS::ServiceCatalog::CloudFormationProvisionedProduct
+    Properties:
+      ProductId: !Ref ProvisioningProductId
+      ProvisionedProductName: Sandbox
+      ProvisioningArtifactId: !Ref ProvisioningArtifactId
+      ProvisioningParameters:
+      - Key: AccountName
+        Value: Production
+      - Key: AccountEmail
+        Value: !Sub "${AccountEmailPrefix}production${AccountEmailSuffix}"
+      - Key: SSOUserFirstName
+        Value: !Ref SSOUserFirstName
+      - Key: SSOUserLastName
+        Value: !Ref SSOUserLastName
+      - Key: SSOUserEmail
+        Value: !Ref SSOUserEmail
+      - Key: ManagedOrganizationalUnit
+        Value: !Ref WorkloadsOrganizationalUnit
+  NetworkAccount:
+    Type: AWS::ServiceCatalog::CloudFormationProvisionedProduct
+    Properties:
+      ProductId: !Ref ProvisioningProductId
+      ProvisionedProductName: Sandbox
+      ProvisioningArtifactId: !Ref ProvisioningArtifactId
+      ProvisioningParameters:
+      - Key: AccountName
+        Value: Network
+      - Key: AccountEmail
+        Value: !Sub "${AccountEmailPrefix}network${AccountEmailSuffix}"
+      - Key: SSOUserFirstName
+        Value: !Ref SSOUserFirstName
+      - Key: SSOUserLastName
+        Value: !Ref SSOUserLastName
+      - Key: SSOUserEmail
+        Value: !Ref SSOUserEmail
+      - Key: ManagedOrganizationalUnit
+        Value: !Ref SharedOrganizationalUnit
+  BackupAccount:
+    Type: AWS::ServiceCatalog::CloudFormationProvisionedProduct
+    Properties:
+      ProductId: !Ref ProvisioningProductId
+      ProvisionedProductName: Sandbox
+      ProvisioningArtifactId: !Ref ProvisioningArtifactId
+      ProvisioningParameters:
+      - Key: AccountName
+        Value: Backup
+      - Key: AccountEmail
+        Value: !Sub "${AccountEmailPrefix}backup${AccountEmailSuffix}"
+      - Key: SSOUserFirstName
+        Value: !Ref SSOUserFirstName
+      - Key: SSOUserLastName
+        Value: !Ref SSOUserLastName
+      - Key: SSOUserEmail
+        Value: !Ref SSOUserEmail
+      - Key: ManagedOrganizationalUnit
+        Value: !Ref SharedOrganizationalUnit

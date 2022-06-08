@@ -1,0 +1,86 @@
+#!/bin/sh
+
+set -e
+
+if ! command -v aws > /dev/null; then
+  echo "Please install the AWS cli and try again"
+  exit 1
+fi
+
+if [ -f config.env ]; then
+  export $(xargs < config.env)
+fi
+
+BUCKET="custom-control-tower-configuration-$AWS_ACCOUNT_ID-$AWS_HOME_REGION"
+PIPELINE_NAME="Custom-Control-Tower-CodePipeline"
+S3_KEY="custom-control-tower-configuration.zip"
+
+if [ ! -f "manifest.yaml" ]; then
+  echo "Generating manifest..."
+  bin/render-template manifest.template.yaml manifest.yaml
+  # rm manifest.template.yaml
+
+  printf "%s" "Edit manifest before deploying? (y/n) "
+  IFS= read -r line
+
+  if [ "$line" = "y" ]; then
+    if [ -z "$EDITOR" ]; then
+      echo "No \$EDITOR set." >&2
+      echo "Aborting" >&2
+      exit 1
+    fi
+
+    "$EDITOR" manifest.yaml
+  fi
+fi
+
+echo "Preparing customized package..."
+zip -Xr "$S3_KEY" manifest.yaml templates
+
+echo "Preparing pipeline..."
+previous_execution_id=$(aws codepipeline \
+  list-pipeline-executions \
+  --pipeline-name "$PIPELINE_NAME" \
+  --query "pipelineExecutionSummaries[0].pipelineExecutionId" \
+  --output text)
+
+echo "Uploading package..."
+aws s3 mv "$S3_KEY" "s3://$BUCKET/$S3_KEY"
+echo "Upload complete."
+
+echo "Waiting for pipeline to start..."
+current_execution_id="$previous_execution_id"
+while [ "$previous_execution_id" = "$current_execution_id" ]; do
+  sleep 5
+  current_execution_id=$(aws codepipeline \
+    list-pipeline-executions \
+    --pipeline-name "$PIPELINE_NAME" \
+    --query "pipelineExecutionSummaries[0].pipelineExecutionId" \
+    --output text)
+done
+
+echo "Started pipeline execution: $current_execution_id"
+
+echo "Waiting for pipeline to complete..."
+state="InProgress"
+while [ "$state" = "InProgress" ]; do
+  sleep 10
+  state=$(aws codepipeline \
+    get-pipeline-execution \
+    --pipeline-name "$PIPELINE_NAME" \
+    --pipeline-execution-id "$current_execution_id" \
+    --query "pipelineExecution.status" \
+    --output text)
+  aws codepipeline \
+    get-pipeline-state \
+    --name "$PIPELINE_NAME" \
+    --query "stageStates[*].[stageName,actionStates[0].latestExecution.status]" \
+    --output table
+done
+
+if [ "$state" = "Succeeded" ]; then
+  echo "Pipeline deployed successfully!"
+else
+  echo "Pipeline completed with status $state" >&2
+  exit 1
+fi

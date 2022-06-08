@@ -1,0 +1,87 @@
+#!/bin/sh
+
+set -e
+
+if ! command -v aws > /dev/null; then
+  echo "Please install the AWS cli and try again"
+  exit 1
+fi
+
+if [ -f config.env ]; then
+  export $(xargs < config.env)
+fi
+
+STACK_NAME="aws-control-tower-accounts"
+PRODUCT_NAME="AWS Control Tower Account Factory"
+
+echo "Checking for account factory..."
+PRODUCT_ID=$(aws servicecatalog \
+  search-products \
+  --filters "FullTextSearch=$PRODUCT_NAME" \
+  --query "ProductViewSummaries[0].ProductId" \
+  --output text)
+
+if [ -z "$PRODUCT_ID" ]; then
+  echo "Unable to find Control Tower account factory." >&2
+  echo "Aborting." >&2
+  exit 1
+fi
+
+echo "Found product: $PRODUCT_ID"
+
+echo "Checking for latest version..."
+ARTIFACT_ID=$(aws servicecatalog \
+  describe-product \
+  --id "$PRODUCT_ID" \
+  --query "ProvisioningArtifacts[0].Id" \
+  --output text)
+
+if [ -z "$ARTIFACT_ID" ]; then
+  echo "Unable to find Control Tower account factory." >&2
+  echo "Aborting." >&2
+  exit 1
+fi
+
+echo "Found artifact: $ARTIFACT_ID"
+
+echo "Checking for accounts stack..."
+DEPLOYED_STACK=$(aws cloudformation list-stacks \
+  --query "StackSummaries[?StackName=='$STACK_NAME' && StackStatus!='DELETE_COMPLETE'].StackName" \
+  --output text)
+
+if [ "$DEPLOYED_STACK" = "$STACK_NAME" ]; then
+  echo "Found accounts stack: $STACK_NAME"
+else
+  echo "Accounts stack is not deployed."
+  printf "%s" "Deploy now? (y/n): "
+  IFS= read -r line
+
+  if [ "$line" = "y" ]; then
+    echo "Creating accounts stack..."
+    STACK_ID=$(aws cloudformation create-stack \
+      --region "$AWS_HOME_REGION" \
+      --stack-name $STACK_NAME \
+      --template-body file://accounts.yaml \
+      --enable-termination-protection \
+      --parameters \
+      "ParameterKey=ProvisioningProductId,ParameterValue=$PRODUCT_ID" \
+      "ParameterKey=ProvisioningArtifactId,ParameterValue=$ARTIFACT_ID" \
+      "ParameterKey=AccountEmailPrefix,ParameterValue=$ACCOUNT_EMAIL_PREFIX" \
+      "ParameterKey=AccountEmailSuffix,ParameterValue=$ACCOUNT_EMAIL_SUFFIX" \
+      "ParameterKey=SharedOrganizationalUnit,ParameterValue=$SHARED_OU" \
+      "ParameterKey=WorkloadsOrganizationalUnit,ParameterValue=$WORKLOADS_OU" \
+      "ParameterKey=SSOUserEmail,ParameterValue=$USER_EMAIL" \
+      "ParameterKey=SSOUserFirstName,ParameterValue=$USER_FIRST_NAME" \
+      "ParameterKey=SSOUserLastName,ParameterValue=$USER_LAST_NAME" \
+      --tags "Key=Repository,Value=$GITHUB_ORGANIZATION/$LANDING_ZONE_REPO" \
+      --query StackId \
+      --output text)
+    echo "Created stack $STACK_ID"
+    echo "Waiting for stack completion..."
+    aws cloudformation wait stack-create-complete --stack-name "$STACK_NAME"
+    echo "Stack is complete."
+  else
+    echo "Aborting." >&2
+    exit
+  fi
+fi

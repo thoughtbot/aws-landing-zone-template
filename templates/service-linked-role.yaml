@@ -1,0 +1,15 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Ensure a service-linked role exists in a new account
+
+Parameters:
+  AWSServiceName:
+    Description: "AWS service for which a service-linked role should be created"
+    Type: String
+
+Resources:
+  Account:
+    Type: AWS::IAM::ServiceLinkedRole
+    Properties:
+      AWSServiceName: !Ref AWSServiceName
+      Description: Managed by Customizations for Control Tower

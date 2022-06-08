@@ -1,0 +1,8 @@
+#!/bin/sh
+
+set -e
+
+bin/prepare-config
+bin/provision-accounts
+bin/deploy-customizations-for-control-tower
+bin/deploy-customized-package

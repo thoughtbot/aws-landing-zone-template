@@ -1,0 +1,299 @@
+#!/bin/sh
+
+set -e
+
+if ! command -v aws > /dev/null; then
+  echo "Please install the AWS cli and try again"
+  exit 1
+fi
+
+if [ -f config.env ]; then
+  export $(xargs < config.env)
+fi
+
+write_config() {
+  cat > config.env <<-EOS
+ACCOUNT_EMAIL_PREFIX="$ACCOUNT_EMAIL_PREFIX"
+ACCOUNT_EMAIL_SUFFIX="$ACCOUNT_EMAIL_SUFFIX"
+AWS_ACCOUNT_ID="$AWS_ACCOUNT_ID"
+AWS_DEFAULT_REGION="$AWS_HOME_REGION"
+AWS_HOME_REGION="$AWS_HOME_REGION"
+AWS_LANDING_ZONE="$AWS_LANDING_ZONE"
+AWS_PAGER=""
+AWS_PROFILE="$AWS_LANDING_ZONE-management"
+AWS_REGION="$AWS_HOME_REGION"
+GITHUB_ORGANIZATION="$GITHUB_ORGANIZATION"
+INFRA_REPO="$INFRA_REPO"
+LANDING_ZONE_REPO="$LANDING_ZONE_REPO"
+SHARED_OU="$SHARED_OU"
+USER_EMAIL="$USER_EMAIL"
+USER_FIRST_NAME="$USER_FIRST_NAME"
+USER_LAST_NAME="$USER_LAST_NAME"
+WORKLOADS_OU="$WORKLOADS_OU"
+EOS
+}
+
+if [ -z "$AWS_LANDING_ZONE" ] ; then
+  echo "What is the URL for your landing zone?"
+  echo "https://MY_NAME.awsapps.com/start"
+  IFS= read -r line
+  AWS_LANDING_ZONE=$(echo "$line" \
+    | grep -oE '^https:\/\/([^.]*)\.awsapps\.com\/start' \
+    | cut -d/ -f3 \
+    | cut -d. -f1 \
+    || true)
+
+  if [ -z "$AWS_LANDING_ZONE" ]; then
+    echo "Invalid landing zone URL." >&2
+    exit 1
+  fi
+
+  write_config
+fi
+
+echo "Found AWS Landing zone: $AWS_LANDING_ZONE"
+
+AWS_PROFILE="$AWS_LANDING_ZONE-management"
+export AWS_SSO_START_URL="https://$AWS_LANDING_ZONE.awsapps.com/start"
+
+if [ -z "$AWS_ACCOUNT_ID" ]; then
+  echo "Configuring profile: $AWS_PROFILE"
+  aws configure set "profile.$AWS_PROFILE.sso_start_url" "$AWS_SSO_START_URL"
+  echo "You will now be prompted to log in to your SSO account."
+  echo "Be sure to:"
+  echo "* Select the management account"
+  echo "* Use the AWSAdministratorAccess permission set"
+  aws sso logout
+  aws configure sso --profile "$AWS_PROFILE"
+  AWS_ACCOUNT_ID=$(aws \
+    --profile "$AWS_PROFILE" \
+    sts \
+    get-caller-identity \
+    --query Account \
+    --output text)
+
+  AWS_HOME_REGION=$(aws --profile "$AWS_PROFILE" configure get sso_region)
+  write_config
+fi
+
+if ! aws --profile "$AWS_PROFILE" sts get-caller-identity > /dev/null; then
+  aws --profile "$AWS_PROFILE" sso login
+fi
+
+echo "Checking AWS organization..."
+MANAGEMENT_ACCOUNT_ID=$(aws \
+  --profile "$AWS_PROFILE" \
+  organizations \
+  describe-organization \
+  --query Organization.MasterAccountId \
+  --output text)
+
+if [ "$AWS_ACCOUNT_ID" != "$MANAGEMENT_ACCOUNT_ID" ]; then
+  echo "Expected management account: $MANAGEMENT_ACCOUNT_ID" >&2
+  echo "Got actual account:          $AWS_ACCOUNT_ID" >&2
+  exit 1
+fi
+
+echo "Found management account: $AWS_ACCOUNT_ID"
+
+if [ -z "$GITHUB_ORGANIZATION" ]; then
+  echo "What is the name for your GitHub organization?"
+  IFS= read -r GITHUB_ORGANIZATION
+  write_config
+fi
+
+echo "Found GitHub organization: $GITHUB_ORGANIZATION"
+
+export AWS_DEFAULT_REGION="$AWS_HOME_REGION"
+export AWS_PAGER=""
+export AWS_PROFILE
+export AWS_REGION="$AWS_HOME_REGION"
+
+BUCKET="custom-control-tower-configuration-$AWS_ACCOUNT_ID-$AWS_HOME_REGION"
+PIPELINE_NAME="Custom-Control-Tower-CodePipeline"
+S3_KEY="custom-control-tower-configuration.zip"
+STACK_NAME="aws-control-tower-customizations"
+STACK_URL="https://s3.amazonaws.com/solutions-reference/customizations-for-aws-control-tower/latest/custom-control-tower-initiation.template"
+
+if [ -z "$LANDING_ZONE_REPO" ]; then
+  echo "No landing zone repository configured."
+  echo "Checking Git remotes..."
+  LANDING_ZONE_REPO="$(gh repo view --json name -q .name || true)"
+
+  if [ -z "$LANDING_ZONE_REPO" ]; then
+    echo "This repository is not configured to push to your GitHub organization." >&2
+    echo "After you've pushed your repository and configured a remote, try again." >&2
+    echo "Aborting." >&2
+    exit 1
+  fi
+
+  write_config
+fi
+
+echo "Landing zone repository is $LANDING_ZONE_REPO"
+
+if [ -z "$INFRA_REPO" ]; then
+  echo "No landing zone repository configured."
+  if echo "$LANDING_ZONE_REPO" | grep -q landing-zone; then
+    INFRA_REPO=$(echo "$LANDING_ZONE_REPO" | sed s/landing-zone/infra/)
+  fi
+  printf "Enter infrastructure repository (default: %s): " "$INFRA_REPO"
+  IFS= read -r line
+
+  if [ -z "$line" ]; then
+    if [ -z "$INFRA_REPO" ]; then
+      echo "Aborting." >&2
+      exit 1
+    fi
+  else
+    INFRA_REPO="$ine"
+  fi
+
+  write_config
+fi
+
+echo "Infrastructure repository is $INFRA_REPO"
+
+if [ -z "$WORKLOADS_OU" ]; then
+  echo "Checking for organizational units..."
+
+  AWS_ROOT=$(aws organizations \
+    list-roots \
+    --query "Roots[?Name=='Root'].Id" \
+    --output text)
+  if [ -z "$AWS_ROOT" ]; then
+    echo "Unable to find organizational root." >&2
+    echo "Aborting." >&2
+  fi
+
+  AWS_OUS=$(aws organizations \
+    list-organizational-units-for-parent \
+    --parent-id "$AWS_ROOT" \
+    --query "OrganizationalUnits[*].[Name]" \
+    --output text)
+
+  if echo "$AWS_OUS" | grep -qx Workloads; then
+    WORKLOADS_OU="Workloads"
+  else
+    non_core=$(echo "$AWS_OUS" | grep -vx Security)
+    non_core_count=$(echo "$non_core" | wc -l)
+
+    if [ "$non_core_count" = "1" ]; then
+      WORKLOADS_OU="$non_core"
+    else
+      echo "Found non-core OUs:"
+      echo "$non_core"
+      printf "Enter the name of the OU in which workloads will run: "
+      IFS= read -r WORKLOADS_OU
+    fi
+  fi
+
+  write_config
+fi
+
+echo "Found organization unit for workloads: $WORKLOADS_OU"
+
+if [ -z "$SHARED_OU" ]; then
+  echo "Checking for organizational units..."
+
+  AWS_ROOT=$(aws organizations \
+    list-roots \
+    --query "Roots[?Name=='Root'].Id" \
+    --output text)
+  if [ -z "$AWS_ROOT" ]; then
+    echo "Unable to find organizational root." >&2
+    echo "Aborting." >&2
+  fi
+
+  AWS_OUS=$(aws organizations \
+    list-organizational-units-for-parent \
+    --parent-id "$AWS_ROOT" \
+    --query "OrganizationalUnits[*].[Name]" \
+    --output text)
+
+  if echo "$AWS_OUS" | grep -qx Shared; then
+    SHARED_OU="Shared"
+  else
+    non_core=$(echo "$AWS_OUS" | grep -vx Security)
+    non_core_count=$(echo "$non_core" | wc -l)
+
+    if [ "$non_core_count" = "1" ]; then
+      SHARED_OU="$non_core"
+    else
+      echo "Found non-core OUs:"
+      echo "$non_core"
+      printf "Enter the name of the OU in which shared resources will live: "
+      IFS= read -r SHARED_OU
+    fi
+  fi
+
+  write_config
+fi
+
+echo "Found organization unit for workloads: $SHARED_OU"
+
+if [ -z "$ACCOUNT_EMAIL_PREFIX" ] || [ -z "$ACCOUNT_EMAIL_SUFFIX" ]; then
+  echo "Guessing account email pattern..."
+
+  AWS_ACCOUNT_EMAIL=$(aws organizations \
+    describe-account --account-id "$AWS_ACCOUNT_ID" \
+    --query Account.Email \
+    --output text)
+
+  ACCOUNT_EMAIL_PREFIX="$(echo "$AWS_ACCOUNT_EMAIL" | cut -d'+' -f1 | cut -d'@' -f1)+"
+  ACCOUNT_EMAIL_SUFFIX="@$(echo "$AWS_ACCOUNT_EMAIL" | cut -d'@' -f2)"
+
+  printf "Enter account email prefix (default: %s): " "$ACCOUNT_EMAIL_PREFIX"
+  IFS= read -r line
+  if [ -n "$line" ]; then
+    ACCOUNT_EMAIL_PREFIX="$line"
+  fi
+
+  printf "Enter account email suffix (default: %s): " "$ACCOUNT_EMAIL_SUFFIX"
+  IFS= read -r line
+  if [ -n "$line" ]; then
+    ACCOUNT_EMAIL_SUFFIX="$line"
+  fi
+
+  write_config
+fi
+
+printf "Using account email pattern: %sACCOUNT%s\n" \
+  "$ACCOUNT_EMAIL_PREFIX" \
+  "$ACCOUNT_EMAIL_SUFFIX"
+
+if [ -z "$USER_FIRST_NAME" ] \
+  || [ -z "$USER_LAST_NAME" ] \
+  || [ -z "$USER_EMAIL" ]; then
+  echo "Guessing SSO user..."
+
+  USER_EMAIL=$(git config --get user.email || true)
+  USER_NAME=$(git config --get user.name || true)
+  USER_FIRST_NAME=$(echo "$USER_NAME" | cut -d' ' -f1)
+  USER_LAST_NAME=$(echo "$USER_NAME" | cut -d' ' -f2-)
+
+  printf "Your email (default: %s): " "$USER_EMAIL"
+  IFS= read -r line
+  if [ -n "$line" ]; then
+    USER_EMAIL="$line"
+  fi
+
+  printf "Your first name (default: %s): " "$USER_FIRST_NAME"
+  IFS= read -r line
+  if [ -n "$line" ]; then
+    USER_FIRST_NAME="$line"
+  fi
+
+  printf "Your last name (default: %s): " "$USER_LAST_NAME"
+  IFS= read -r line
+  if [ -n "$line" ]; then
+    USER_LAST_NAME="$line"
+  fi
+
+  write_config
+fi
+
+printf "Found SSO user: %s %s (%s)\n" \
+  "$USER_FIRST_NAME" \
+  "$USER_LAST_NAME" \
+  "$USER_EMAIL"

@@ -1,0 +1,99 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: |
+  This Cloudformation template creates roles suitable for running Terraform
+  configurations using a CI/CD pipeline while allowing manual state manipuation
+  by administrators.
+
+Parameters:
+  AdminPrincipal:
+    Description: |
+      IAM principal allowed to assume the state management role as a human
+      operator; defaults to the current AWS account.
+    Default: ""
+    Type: String
+  CICDPrincipal:
+    Description: IAM principal used by CI/CD pipelines
+    Default: ""
+    Type: String
+  ManagedPolicyArns:
+    Description: |
+      Comma-separate list of managed policy ARNs; defaults to
+      AdministratorAccess
+    Type: CommaDelimitedList
+    Default: arn:aws:iam::aws:policy/AdministratorAccess
+  Name:
+    Description: Name of the IAM role to create; defaults to terraform-execution
+    Type: String
+    Default: terraform-execution
+  SSOPermissionSet:
+    Description: |
+      If provided, IAM roles created from this permission set will be allowed to
+      access Terraform state.
+    Type: String
+    Default: ""
+  Repository:
+    Description: Name of the repository containing Terraform configuration
+    Type: String
+
+Conditions:
+  SkipAdminPrincipal: !Equals [!Ref AdminPrincipal, ""]
+  SkipCICDPrincipal: !Equals [!Ref CICDPrincipal, ""]
+  SkipSSOPermissionSet: !Equals [!Ref SSOPermissionSet, ""]
+
+Resources:
+
+  ExecutionRole:
+    Type: AWS::IAM::Role
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: Name must match Terraform exactly
+    Properties:
+      Description: IAM role capable of applying Terraform configurations
+      RoleName: !Ref Name
+      ManagedPolicyArns: !Ref ManagedPolicyArns
+      Tags:
+      - Key: Repository
+        Value: !Ref Repository
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - !If
+            - SkipAdminPrincipal
+            - !Ref AWS::NoValue
+            - Sid: AllowCICD
+              Effect: Allow
+              Principal:
+                AWS: !Ref AdminPrincipal
+              Action: sts:AssumeRole
+          - !If
+            - SkipCICDPrincipal
+            - !Ref AWS::NoValue
+            - Sid: AllowCICD
+              Effect: Allow
+              Principal:
+                AWS: !Ref CICDPrincipal
+              Action: sts:AssumeRole
+          - !If
+            - SkipSSOPermissionSet
+            - !Ref AWS::NoValue
+            - Sid: AllowSSOPermissionSet
+              Effect: Allow
+              Principal:
+                AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+              Action: sts:AssumeRole
+              Condition:
+                ArnLike:
+                  "aws:PrincipalArn":
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/aws-reserved/sso.amazonaws.com/${AWS::Region}/AWSReservedSSO_${SSOPermissionSet}_*"
+
+  TerraformStateBackend:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://s3.us-east-1.amazonaws.com/terraform-state-backend-templates/pr/5/terraform-state-backend.template
+      Parameters:
+        ExecutionPrincipal: !Ref CICDPrincipal
+        Repository: !Ref Repository
+        SSOPermissionSet: !Ref SSOPermissionSet

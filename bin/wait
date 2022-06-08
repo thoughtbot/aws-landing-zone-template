@@ -1,0 +1,63 @@
+#!/bin/sh
+
+set -e
+
+if ! command -v aws > /dev/null; then
+  echo "Please install the AWS cli and try again"
+  exit 1
+fi
+
+if [ -f config.env ]; then
+  export $(xargs < config.env)
+fi
+
+AWS_PROFILE="$AWS_LANDING_ZONE-management"
+export AWS_DEFAULT_REGION="$AWS_HOME_REGION"
+export AWS_PAGER=""
+export AWS_PROFILE
+export AWS_REGION="$AWS_HOME_REGION"
+BUCKET="custom-control-tower-configuration-$AWS_ACCOUNT_ID-$AWS_HOME_REGION"
+PIPELINE_NAME="Custom-Control-Tower-CodePipeline"
+S3_KEY="custom-control-tower-configuration.zip"
+STACK_NAME="aws-control-tower-customizations"
+STACK_URL="https://s3.amazonaws.com/solutions-reference/customizations-for-aws-control-tower/latest/custom-control-tower-initiation.template"
+
+echo "Preparing pipeline..."
+previous_execution_id=""
+
+echo "Waiting for pipeline to start..."
+current_execution_id="$previous_execution_id"
+while [ "$previous_execution_id" = "$current_execution_id" ]; do
+  current_execution_id=$(aws codepipeline \
+    list-pipeline-executions \
+    --pipeline-name "$PIPELINE_NAME" \
+    --query "pipelineExecutionSummaries[0].pipelineExecutionId" \
+    --output text)
+done
+
+echo "Started pipeline execution: $current_execution_id"
+exit
+
+echo "Waiting for pipeline to complete..."
+state="InProgress"
+while [ "$state" = "InProgress" ]; do
+  state=$(aws codepipeline \
+    get-pipeline-execution \
+    --pipeline-name "$PIPELINE_NAME" \
+    --pipeline-execution-id "$current_execution_id" \
+    --query "pipelineExecution.status" \
+    --output text)
+  aws codepipeline \
+    get-pipeline-state \
+    --name "$PIPELINE_NAME" \
+    --query "stageStates[*].[stageName,actionStates[0].latestExecution.status]" \
+    --output table
+  sleep 10
+done
+
+if [ "$state" = "Succeeded" ]; then
+  echo "Pipeline deployed successfully!"
+else
+  echo "Pipeline completed with status $state" >&2
+  exit 1
+fi
