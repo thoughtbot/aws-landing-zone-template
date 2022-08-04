@@ -77,6 +77,7 @@ Resources:
         Value: !Ref SSOUserEmail
       - Key: ManagedOrganizationalUnit
         Value: !Ref WorkloadsOrganizationalUnit
+    DependsOn: OperationsAccount
   ProductionAccount:
     Type: AWS::ServiceCatalog::CloudFormationProvisionedProduct
     Properties:
@@ -96,6 +97,7 @@ Resources:
         Value: !Ref SSOUserEmail
       - Key: ManagedOrganizationalUnit
         Value: !Ref WorkloadsOrganizationalUnit
+    DependsOn: SandboxAccount
   NetworkAccount:
     Type: AWS::ServiceCatalog::CloudFormationProvisionedProduct
     Properties:
@@ -115,6 +117,7 @@ Resources:
         Value: !Ref SSOUserEmail
       - Key: ManagedOrganizationalUnit
         Value: !Ref SharedOrganizationalUnit
+    DependsOn: ProductionAccount
   BackupAccount:
     Type: AWS::ServiceCatalog::CloudFormationProvisionedProduct
     Properties:
@@ -134,3 +137,4 @@ Resources:
         Value: !Ref SSOUserEmail
       - Key: ManagedOrganizationalUnit
         Value: !Ref SharedOrganizationalUnit
+    DependsOn: NetworkAccount
