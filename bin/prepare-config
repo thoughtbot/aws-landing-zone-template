@@ -63,8 +63,11 @@ if [ -z "$AWS_ACCOUNT_ID" ]; then
   echo "Be sure to:"
   echo "* Select the management account"
   echo "* Use the AWSAdministratorAccess permission set"
-  aws sso logout
+  aws sso logout || true 1>&2 > /dev/null
   aws configure sso --profile "$AWS_PROFILE"
+  AWS_HOME_REGION=$(aws --profile "$AWS_PROFILE" configure get sso_region)
+  export AWS_DEFAULT_REGION="$AWS_HOME_REGION"
+  export AWS_REGION="$AWS_HOME_REGION"
   AWS_ACCOUNT_ID=$(aws \
     --profile "$AWS_PROFILE" \
     sts \
@@ -72,7 +75,6 @@ if [ -z "$AWS_ACCOUNT_ID" ]; then
     --query Account \
     --output text)
 
-  AWS_HOME_REGION=$(aws --profile "$AWS_PROFILE" configure get sso_region)
   write_config
 fi
 
