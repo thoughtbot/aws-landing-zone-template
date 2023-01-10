@@ -269,10 +269,9 @@ if [ -z "$USER_FIRST_NAME" ] \
   || [ -z "$USER_EMAIL" ]; then
   echo "Guessing SSO user..."
 
-  USER_EMAIL=$(git config --get user.email || true)
-  USER_NAME=$(git config --get user.name || true)
-  USER_FIRST_NAME=$(echo "$USER_NAME" | cut -d' ' -f1)
-  USER_LAST_NAME=$(echo "$USER_NAME" | cut -d' ' -f2-)
+  USER_EMAIL="${ACCOUNT_EMAIL_PREFIX}management${ACCOUNT_EMAIL_SUFFIX}"
+  USER_FIRST_NAME="AWS Control Tower"
+  USER_LAST_NAME="Admin"
 
   printf "Your email (default: %s): " "$USER_EMAIL"
   IFS= read -r line
