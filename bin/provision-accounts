@@ -51,6 +51,36 @@ DEPLOYED_STACK=$(aws cloudformation list-stacks \
 
 if [ "$DEPLOYED_STACK" = "$STACK_NAME" ]; then
   echo "Found accounts stack: $STACK_NAME"
+
+  CHANGE_SET="$STACK_NAME-$(uuidgen)"
+  echo "Creating changeset $CHANGE_SET..."
+  aws cloudformation create-change-set \
+    --stack-name "$STACK_NAME" \
+    --template-body file://accounts.yaml \
+    --change-set-name "$CHANGE_SET" \
+    --parameters \
+    "ParameterKey=ProvisioningProductId,ParameterValue=$PRODUCT_ID" \
+    "ParameterKey=ProvisioningArtifactId,ParameterValue=$ARTIFACT_ID" \
+    "ParameterKey=AccountEmailPrefix,ParameterValue=$ACCOUNT_EMAIL_PREFIX" \
+    "ParameterKey=AccountEmailSuffix,ParameterValue=$ACCOUNT_EMAIL_SUFFIX" \
+    "ParameterKey=SharedOrganizationalUnit,ParameterValue=$SHARED_OU" \
+    "ParameterKey=WorkloadsOrganizationalUnit,ParameterValue=$WORKLOADS_OU" \
+    "ParameterKey=SSOUserEmail,ParameterValue=$USER_EMAIL" \
+    "ParameterKey=SSOUserFirstName,ParameterValue=$USER_FIRST_NAME" \
+    "ParameterKey=SSOUserLastName,ParameterValue=$USER_LAST_NAME"
+  aws cloudformation wait change-set-create-complete \
+    --change-set-name "$CHANGE_SET" \
+    --stack-name "$STACK_NAME" \
+
+  echo "Applying changeset..."
+  aws cloudformation execute-change-set \
+    --change-set-name "$CHANGE_SET" \
+    --stack-name "$STACK_NAME" \
+    --disable-rollback
+  echo "Waiting for stack completion..."
+  aws cloudformation wait stack-update-complete \
+    --stack-name "$STACK_NAME"
+  echo "Stack is complete."
 else
   echo "Accounts stack is not deployed."
   printf "%s" "Deploy now? (y/n): "
