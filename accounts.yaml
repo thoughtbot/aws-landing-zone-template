@@ -88,7 +88,7 @@ Resources:
     UpdateReplacePolicy: Retain
     Properties:
       ProductId: !Ref ProvisioningProductId
-      ProvisionedProductName: Sandbox
+      ProvisionedProductName: Production
       ProvisioningArtifactId: !Ref ProvisioningArtifactId
       ProvisioningParameters:
       - Key: AccountName
@@ -110,7 +110,7 @@ Resources:
     UpdateReplacePolicy: Retain
     Properties:
       ProductId: !Ref ProvisioningProductId
-      ProvisionedProductName: Sandbox
+      ProvisionedProductName: Network
       ProvisioningArtifactId: !Ref ProvisioningArtifactId
       ProvisioningParameters:
       - Key: AccountName
@@ -132,7 +132,7 @@ Resources:
     UpdateReplacePolicy: Retain
     Properties:
       ProductId: !Ref ProvisioningProductId
-      ProvisionedProductName: Sandbox
+      ProvisionedProductName: Backup
       ProvisioningArtifactId: !Ref ProvisioningArtifactId
       ProvisioningParameters:
       - Key: AccountName
