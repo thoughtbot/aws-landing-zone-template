@@ -54,7 +54,7 @@ if [ "$DEPLOYED_STACK" = "$STACK_NAME" ]; then
 
   CHANGE_SET="$STACK_NAME-$(uuidgen)"
   echo "Creating changeset $CHANGE_SET..."
-  aws cloudformation create-change-set \
+  changeset_arn=$(aws cloudformation create-change-set \
     --stack-name "$STACK_NAME" \
     --template-body file://accounts.yaml \
     --change-set-name "$CHANGE_SET" \
@@ -67,20 +67,31 @@ if [ "$DEPLOYED_STACK" = "$STACK_NAME" ]; then
     "ParameterKey=WorkloadsOrganizationalUnit,ParameterValue=$WORKLOADS_OU" \
     "ParameterKey=SSOUserEmail,ParameterValue=$USER_EMAIL" \
     "ParameterKey=SSOUserFirstName,ParameterValue=$USER_FIRST_NAME" \
-    "ParameterKey=SSOUserLastName,ParameterValue=$USER_LAST_NAME"
-  aws cloudformation wait change-set-create-complete \
-    --change-set-name "$CHANGE_SET" \
-    --stack-name "$STACK_NAME" \
+    "ParameterKey=SSOUserLastName,ParameterValue=$USER_LAST_NAME" \
+    --query Id \
+    --output text)
+  changeset_changes=$(aws cloudformation describe-change-set \
+    --change-set-name "$changeset_arn" \
+    --query Changes \
+    --output text)
 
-  echo "Applying changeset..."
-  aws cloudformation execute-change-set \
-    --change-set-name "$CHANGE_SET" \
-    --stack-name "$STACK_NAME" \
-    --disable-rollback
-  echo "Waiting for stack completion..."
-  aws cloudformation wait stack-update-complete \
-    --stack-name "$STACK_NAME"
-  echo "Stack is complete."
+  if [ -z "$changeset_changes" ]; then
+    echo "No changes. Skipping."
+  else
+    aws cloudformation wait change-set-create-complete \
+      --change-set-name "$CHANGE_SET" \
+      --stack-name "$STACK_NAME" \
+
+    echo "Applying changeset..."
+    aws cloudformation execute-change-set \
+      --change-set-name "$CHANGE_SET" \
+      --stack-name "$STACK_NAME" \
+      --disable-rollback
+    echo "Waiting for stack completion..."
+    aws cloudformation wait stack-update-complete \
+      --stack-name "$STACK_NAME"
+    echo "Stack is complete."
+  fi
 else
   echo "Accounts stack is not deployed."
   printf "%s" "Deploy now? (y/n): "
