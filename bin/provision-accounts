@@ -63,6 +63,7 @@ else
       --stack-name $STACK_NAME \
       --template-body file://accounts.yaml \
       --enable-termination-protection \
+      --disable-rollback \
       --parameters \
       "ParameterKey=ProvisioningProductId,ParameterValue=$PRODUCT_ID" \
       "ParameterKey=ProvisioningArtifactId,ParameterValue=$ARTIFACT_ID" \
