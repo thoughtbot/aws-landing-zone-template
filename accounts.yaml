@@ -148,3 +148,25 @@ Resources:
       - Key: ManagedOrganizationalUnit
         Value: !Ref SharedOrganizationalUnit
     DependsOn: NetworkAccount
+  IdentityAccount:
+    Type: AWS::ServiceCatalog::CloudFormationProvisionedProduct
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      ProductId: !Ref ProvisioningProductId
+      ProvisionedProductName: Identity
+      ProvisioningArtifactId: !Ref ProvisioningArtifactId
+      ProvisioningParameters:
+      - Key: AccountName
+        Value: Identity
+      - Key: AccountEmail
+        Value: !Sub "${AccountEmailPrefix}identity${AccountEmailSuffix}"
+      - Key: SSOUserFirstName
+        Value: !Ref SSOUserFirstName
+      - Key: SSOUserLastName
+        Value: !Ref SSOUserLastName
+      - Key: SSOUserEmail
+        Value: !Ref SSOUserEmail
+      - Key: ManagedOrganizationalUnit
+        Value: !Ref SharedOrganizationalUnit
+    DependsOn: BackupAccount
