@@ -1,0 +1,89 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Provide OIDC provider an role for GitHub Actions
+
+Parameters:
+  Repository:
+    Description: Name of the GitHub repository allowed to assume the role
+    Type: String
+  DelegationRoleName:
+    Description: Name of the IAM role GitHub actions are allowed to assume
+    Type: String
+  AllowedRoleArns:
+    Description: |
+      Comma-separate list of role ARNs this role can assume
+    Type: CommaDelimitedList
+  SSOPermissionSet:
+    Description: |
+      If provided, IAM roles created from this permission set will be allowed to
+      access Terraform state.
+    Type: String
+    Default: ""
+
+Conditions:
+  SkipSSOPermissionSet: !Equals [!Ref SSOPermissionSet, ""]
+
+Resources:
+  # IAM OIDCProvider which allows GitHub Actions to assume federated identities
+  GitHubOIDCProvider:
+    Type: AWS::IAM::OIDCProvider
+    Properties:
+      ClientIdList:
+      - sts.amazonaws.com
+      ThumbprintList:
+      - 6938fd4d98bab03faadb97b34396831e3780aea1
+      Url: https://token.actions.githubusercontent.com
+
+  # Allow the delegation role to assume other roles tagged with the source repo
+  DelegationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref DelegationRoleName
+      Description: IAM role assumed by GitHub actions for Terraform
+      Policies:
+      - PolicyName: AllowTaggedRoles
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: sts:AssumeRole
+              Resource: !Ref AllowedRoleArns
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowGitHubRunners
+            Effect: Allow
+            Action:
+            - sts:AssumeRoleWithWebIdentity
+            Principal:
+              Federated: !Ref GitHubOIDCProvider
+            Condition:
+              StringLike:
+                token.actions.githubusercontent.com:sub: !Sub "repo:${Repository}:*"
+          - !If
+            - SkipSSOPermissionSet
+            - !Ref AWS::NoValue
+            - Sid: AllowSSOPermissionSet
+              Effect: Allow
+              Principal:
+                AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+              Action: sts:AssumeRole
+              Condition:
+                ArnLike:
+                  "aws:PrincipalArn":
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_${SSOPermissionSet}_*"
+
+  # Create SSM parameters to reference from Terraform
+  OIDCProviderArn:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /GitHubActions/OIDCProviderArn
+      Type: String
+      Description: >-
+        ARN of the IAM OIDC provider which trusts GitHub Actions
+      Value: !Ref GitHubOIDCProvider
+
+Outputs:
+  DelegationRoleArn:
+    Description: ARN of the IAM role for assuming Terraform execution roles
+    Value: !GetAtt DelegationRole.Arn

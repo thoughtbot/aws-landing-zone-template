@@ -16,6 +16,10 @@ Parameters:
     Description: IAM principal used by CI/CD pipelines
     Default: ""
     Type: String
+  CICDRoleName:
+    Description: IAM role name used by CI/CD pipelines
+    Default: ""
+    Type: String
   ManagedPolicyArns:
     Description: |
       Comma-separate list of managed policy ARNs; defaults to
@@ -23,9 +27,8 @@ Parameters:
     Type: CommaDelimitedList
     Default: arn:aws:iam::aws:policy/AdministratorAccess
   Name:
-    Description: Name of the IAM role to create; defaults to terraform-execution
+    Description: Name of the IAM role to create
     Type: String
-    Default: terraform-execution
   SSOPermissionSet:
     Description: |
       If provided, IAM roles created from this permission set will be allowed to
@@ -39,6 +42,7 @@ Parameters:
 Conditions:
   SkipAdminPrincipal: !Equals [!Ref AdminPrincipal, ""]
   SkipCICDPrincipal: !Equals [!Ref CICDPrincipal, ""]
+  SkipCICDRoleName: !Equals [!Ref CICDRoleName, ""]
   SkipSSOPermissionSet: !Equals [!Ref SSOPermissionSet, ""]
 
 Resources:
@@ -71,10 +75,18 @@ Resources:
           - !If
             - SkipCICDPrincipal
             - !Ref AWS::NoValue
-            - Sid: AllowCICD
+            - Sid: AllowCICDPrincipal
               Effect: Allow
               Principal:
                 AWS: !Ref CICDPrincipal
+              Action: sts:AssumeRole
+          - !If
+            - SkipCICDRoleName
+            - !Ref AWS::NoValue
+            - Sid: AllowCICDRoleName
+              Effect: Allow
+              Principal:
+                AWS: !Sub "arn:aws:iam::${AWS::AccountId}:role/${CICDRoleName}"
               Action: sts:AssumeRole
           - !If
             - SkipSSOPermissionSet
@@ -92,8 +104,11 @@ Resources:
   TerraformStateBackend:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://s3.us-east-1.amazonaws.com/terraform-state-backend-templates/pr/5/terraform-state-backend.template
+      TemplateURL: https://s3.us-east-1.amazonaws.com/terraform-state-backend-templates/tag/v0.5.0/terraform-state-backend.template
       Parameters:
-        ExecutionPrincipal: !Ref CICDPrincipal
+        ExecutionPrincipal: !If
+          - SkipCICDRoleName
+          - !Ref CICDPrincipal
+          - !Sub "arn:aws:iam::${AWS::AccountId}:role/${CICDRoleName}"
         Repository: !Ref Repository
         SSOPermissionSet: !Ref SSOPermissionSet

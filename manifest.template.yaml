@@ -17,12 +17,18 @@ resources:
   regions:
   - __REGION__
 
-- name: GitHubRunners
-  description: Resources necessary to deploy self-hosted GitHub runners
-  resource_file: templates/github-runner-foundation.yaml
+- name: TerraformHubAccount
+  description: Central resources for running Terraform
+  resource_file: templates/terraform-hub-account.yaml
   parameters:
   - parameter_key: Repository
     parameter_value: __GITHUB_ORG__/__INFRA_REPO__
+  - parameter_key: DelegationRoleName
+    parameter_value: terraform-operations
+  - parameter_key: AllowedRoleArns
+    parameter_value: arn:aws:iam::*:role/terraform-execution,arn:aws:iam::*:role/terraform-state-*
+  - parameter_key: SSOPermissionSet
+    parameter_value: InfrastructureAdmin
   deploy_method: stack_set
   deployment_targets:
     accounts:
@@ -30,21 +36,24 @@ resources:
   regions:
   - __REGION__
   export_outputs:
-  - name: /Customizations/GitHubRunners/RunnerIAMRoleArn
-    value: $[output_GitHubActionRoleArn]
+  - name: /Customizations/TerraformHubAccount/DelegationRoleArn
+    value: $[output_DelegationRoleArn]
 
-- name: VPC
-  description: VPC with public and private subnets
-  resource_file: templates/vpc.yaml
+- name: GitHubActions
+  description: Resources necessary to run from GitHub Actions
+  resource_file: templates/github-actions.yaml
   parameters:
-  - parameter_key: EnvironmentName
-    parameter_value: Operations
-  - parameter_key: VpcCIDR
-    parameter_value: 10.0.0.0/16
+  - parameter_key: Repository
+    parameter_value: __GITHUB_ORG__/__INFRA_REPO__
+  - parameter_key: DelegationRoleName
+    parameter_value: terraform-delegation
+  - parameter_key: AllowedRoleArns
+    parameter_value: arn:aws:iam::*:role/terraform-execution
   deploy_method: stack_set
   deployment_targets:
     accounts:
-    - Operations
+    - Sandbox
+    - Production
   regions:
   - __REGION__
 
@@ -58,11 +67,11 @@ resources:
     organizational_units:
     - __WORKLOADS__
   parameters:
+  - parameter_key: Name
+    parameter_value: terraform-execution
   - parameter_key: CICDPrincipal
-    parameter_value: $[alfred_ssm_/Customizations/GitHubRunners/RunnerIAMRoleArn]
+    parameter_value: $[alfred_ssm_/Customizations/TerraformHubAccount/DelegationRoleArn]
   - parameter_key: Repository
     parameter_value: __GITHUB_ORG__/__INFRA_REPO__
-  - parameter_key: SSOPermissionSet
-    parameter_value: AWSAdministratorAccess
   regions:
   - __REGION__
