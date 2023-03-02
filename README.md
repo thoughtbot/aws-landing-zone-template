@@ -37,5 +37,5 @@ repository, deploy Customizations for Control Tower, save a configuration for
 your landing zone to avoid prompting in the future. You can commit this file to
 Git.
 
-[AWS Control Tower]: https://albaik.awsapps.com/start/#/
+[AWS Control Tower]: https://docs.aws.amazon.com/controltower/latest/userguide/what-is-control-tower.html
 [customizations for AWS Control Tower]: https://aws.amazon.com/solutions/implementations/customizations-for-aws-control-tower/
