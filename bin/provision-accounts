@@ -11,6 +11,25 @@ if [ -f config.env ]; then
   export $(xargs < config.env)
 fi
 
+if [ ! -f "accounts.yaml" ]; then
+  echo "Generating account list..."
+  bin/render-template accounts.template.yaml accounts.yaml
+  rm accounts.template.yaml
+
+  printf "%s" "Edit accounts before deploying? (y/n) "
+  IFS= read -r line
+
+  if [ "$line" = "y" ]; then
+    if [ -z "$EDITOR" ]; then
+      echo "No \$EDITOR set." >&2
+      echo "Aborting" >&2
+      exit 1
+    fi
+
+    "$EDITOR" accounts.yaml
+  fi
+fi
+
 STACK_NAME="aws-control-tower-accounts"
 PRODUCT_NAME="AWS Control Tower Account Factory"
 
@@ -61,8 +80,6 @@ if [ "$DEPLOYED_STACK" = "$STACK_NAME" ]; then
     --parameters \
     "ParameterKey=ProvisioningProductId,ParameterValue=$PRODUCT_ID" \
     "ParameterKey=ProvisioningArtifactId,ParameterValue=$ARTIFACT_ID" \
-    "ParameterKey=AccountEmailPrefix,ParameterValue=$ACCOUNT_EMAIL_PREFIX" \
-    "ParameterKey=AccountEmailSuffix,ParameterValue=$ACCOUNT_EMAIL_SUFFIX" \
     "ParameterKey=SharedOrganizationalUnit,ParameterValue=$SHARED_OU" \
     "ParameterKey=WorkloadsOrganizationalUnit,ParameterValue=$WORKLOADS_OU" \
     "ParameterKey=SSOUserEmail,ParameterValue=$USER_EMAIL" \
