@@ -18,7 +18,7 @@ S3_KEY="custom-control-tower-configuration.zip"
 if [ ! -f "manifest.yaml" ]; then
   echo "Generating manifest..."
   bin/render-template manifest.template.yaml manifest.yaml
-  # rm manifest.template.yaml
+  rm manifest.template.yaml
 
   printf "%s" "Edit manifest before deploying? (y/n) "
   IFS= read -r line
