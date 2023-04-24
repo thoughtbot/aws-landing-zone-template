@@ -125,8 +125,6 @@ else
       --parameters \
       "ParameterKey=ProvisioningProductId,ParameterValue=$PRODUCT_ID" \
       "ParameterKey=ProvisioningArtifactId,ParameterValue=$ARTIFACT_ID" \
-      "ParameterKey=AccountEmailPrefix,ParameterValue=$ACCOUNT_EMAIL_PREFIX" \
-      "ParameterKey=AccountEmailSuffix,ParameterValue=$ACCOUNT_EMAIL_SUFFIX" \
       "ParameterKey=SharedOrganizationalUnit,ParameterValue=$SHARED_OU" \
       "ParameterKey=WorkloadsOrganizationalUnit,ParameterValue=$WORKLOADS_OU" \
       "ParameterKey=SSOUserEmail,ParameterValue=$USER_EMAIL" \
