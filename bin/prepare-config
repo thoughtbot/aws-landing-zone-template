@@ -7,6 +7,10 @@ if ! command -v aws > /dev/null; then
   exit 1
 fi
 
+if [ -f README.template.md ]; then
+  mv README.template.md README.md
+fi
+
 if [ -f config.env ]; then
   export $(xargs < config.env)
 fi
