@@ -148,7 +148,7 @@ if [ -z "$INFRA_REPO" ]; then
       exit 1
     fi
   else
-    INFRA_REPO="$ine"
+    INFRA_REPO="$line"
   fi
 
   write_config
