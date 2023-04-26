@@ -13,7 +13,7 @@ resources:
   deploy_method: stack_set
   deployment_targets:
     accounts:
-    - GitHubRunner
+    - Operations
   regions:
   - __REGION__
 
@@ -65,6 +65,7 @@ resources:
     accounts:
     - Operations
     organizational_units:
+    - __SHARED__
     - __WORKLOADS__
   parameters:
   - parameter_key: Name
