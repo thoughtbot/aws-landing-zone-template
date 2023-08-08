@@ -14,6 +14,9 @@ managed by [AWS Control Tower].
 
 1. Create a new repository for this template.
 2. Run the included `bin/deploy` script to set up your organization.
+3. `bin/deploy` will render the accounts and manifest templates, interpolate
+the necessary strings into place, and convert both templates into yaml files. You
+will have the option to edit each file before deploying to AWS.
 
 [AWS Control Tower]: https://docs.aws.amazon.com/controltower/latest/userguide/what-is-control-tower.html
 [customizations for AWS Control Tower]: https://aws.amazon.com/solutions/implementations/customizations-for-aws-control-tower/
