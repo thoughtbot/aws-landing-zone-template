@@ -3,14 +3,6 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: Provision accounts using Control Tower account factory
 
 Parameters:
-  AccountEmailPrefix:
-    Description: "Prefix to apply to account emails"
-    Type: String
-    AllowedPattern : "[^\\s@]+"
-  AccountEmailSuffix:
-    Description: "Prefix to apply to account emails"
-    Type: String
-    AllowedPattern : "[^\\s@]*@[^\\s@]+\\.[^\\s@]+"
   SSOUserFirstName:
     Description:  "SSO user first name."
     Type: String
@@ -51,7 +43,7 @@ Resources:
       - Key: AccountName
         Value: Operations
       - Key: AccountEmail
-        Value: !Sub "${AccountEmailPrefix}operations${AccountEmailSuffix}"
+        Value: "__ACCOUNT_EMAIL_PREFIX__operations__ACCOUNT_EMAIL_SUFFIX__"
       - Key: SSOUserFirstName
         Value: !Ref SSOUserFirstName
       - Key: SSOUserLastName
@@ -72,7 +64,7 @@ Resources:
       - Key: AccountName
         Value: Sandbox
       - Key: AccountEmail
-        Value: !Sub "${AccountEmailPrefix}sandbox${AccountEmailSuffix}"
+        Value: "__ACCOUNT_EMAIL_PREFIX__sandbox__ACCOUNT_EMAIL_SUFFIX__"
       - Key: SSOUserFirstName
         Value: !Ref SSOUserFirstName
       - Key: SSOUserLastName
@@ -94,7 +86,7 @@ Resources:
       - Key: AccountName
         Value: Production
       - Key: AccountEmail
-        Value: !Sub "${AccountEmailPrefix}production${AccountEmailSuffix}"
+        Value: "__ACCOUNT_EMAIL_PREFIX__production__ACCOUNT_EMAIL_SUFFIX__"
       - Key: SSOUserFirstName
         Value: !Ref SSOUserFirstName
       - Key: SSOUserLastName
@@ -116,7 +108,7 @@ Resources:
       - Key: AccountName
         Value: Network
       - Key: AccountEmail
-        Value: !Sub "${AccountEmailPrefix}network${AccountEmailSuffix}"
+        Value: "__ACCOUNT_EMAIL_PREFIX__network__ACCOUNT_EMAIL_SUFFIX__"
       - Key: SSOUserFirstName
         Value: !Ref SSOUserFirstName
       - Key: SSOUserLastName
@@ -138,7 +130,7 @@ Resources:
       - Key: AccountName
         Value: Backup
       - Key: AccountEmail
-        Value: !Sub "${AccountEmailPrefix}backup${AccountEmailSuffix}"
+        Value: "__ACCOUNT_EMAIL_PREFIX__backup__ACCOUNT_EMAIL_SUFFIX__"
       - Key: SSOUserFirstName
         Value: !Ref SSOUserFirstName
       - Key: SSOUserLastName
@@ -160,7 +152,7 @@ Resources:
       - Key: AccountName
         Value: Identity
       - Key: AccountEmail
-        Value: !Sub "${AccountEmailPrefix}identity${AccountEmailSuffix}"
+        Value: "__ACCOUNT_EMAIL_PREFIX__identity__ACCOUNT_EMAIL_SUFFIX__"
       - Key: SSOUserFirstName
         Value: !Ref SSOUserFirstName
       - Key: SSOUserLastName
