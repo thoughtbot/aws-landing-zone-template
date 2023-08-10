@@ -87,6 +87,11 @@ if [ "$DEPLOYED_STACK" = "$STACK_NAME" ]; then
     "ParameterKey=SSOUserLastName,ParameterValue=$USER_LAST_NAME" \
     --query Id \
     --output text)
+
+  aws cloudformation wait change-set-create-complete \
+      --change-set-name "$CHANGE_SET" \
+      --stack-name "$STACK_NAME" 2> /dev/null || echo "Change set not valid"
+
   changeset_changes=$(aws cloudformation describe-change-set \
     --change-set-name "$changeset_arn" \
     --query Changes \
@@ -95,10 +100,6 @@ if [ "$DEPLOYED_STACK" = "$STACK_NAME" ]; then
   if [ -z "$changeset_changes" ]; then
     echo "No changes. Skipping."
   else
-    aws cloudformation wait change-set-create-complete \
-      --change-set-name "$CHANGE_SET" \
-      --stack-name "$STACK_NAME" \
-
     echo "Applying changeset..."
     aws cloudformation execute-change-set \
       --change-set-name "$CHANGE_SET" \
