@@ -71,7 +71,7 @@ Resources:
               Condition:
                 ArnLike:
                   "aws:PrincipalArn":
-                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_${SSOPermissionSet}_*"
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/aws-reserved/sso.amazonaws.com/*AWSReservedSSO_${SSOPermissionSet}_*"
 
   # Create SSM parameters to reference from Terraform
   OIDCProviderArn:
