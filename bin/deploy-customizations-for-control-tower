@@ -12,7 +12,8 @@ if [ -f config.env ]; then
 fi
 
 STACK_NAME="aws-control-tower-customizations"
-STACK_URL="https://s3.amazonaws.com/solutions-reference/customizations-for-aws-control-tower/latest/custom-control-tower-initiation.template"
+STACK_GH_URL="https://raw.githubusercontent.com/aws-solutions/aws-control-tower-customizations/main/customizations-for-aws-control-tower.template"
+CT_BUCKET_NAME="${AWS_HOME_REGION}-${AWS_ACCOUNT_ID}-ct-template"
 
 echo "Checking for customizations stack..."
 DEPLOYED_STACK=$(aws cloudformation list-stacks \
@@ -27,11 +28,26 @@ else
   IFS= read -r line
 
   if [ "$line" = "y" ]; then
+    curl -o customizations.template $STACK_GH_URL
+
+    if aws s3api list-buckets | grep -q $CT_BUCKET_NAME; then
+        echo "Found bucket for customization template"
+    else
+        aws s3api create-bucket --bucket $CT_BUCKET_NAME \
+            --region $AWS_REGION
+    fi
+
+    path=customizations.template
+    aws s3 mv $path s3://$CT_BUCKET_NAME/$path
+    echo "s3://${AWS_REGION}-${AWS_ACCOUNT_ID}-ct-template/customizations.template"
+    presigned_url=$(aws s3 presign s3://${AWS_REGION}-${AWS_ACCOUNT_ID}-ct-template/customizations.template)
+    echo $presigned_url
+
     echo "Creating customizations stack..."
     STACK_ID=$(aws cloudformation create-stack \
       --region "$AWS_HOME_REGION" \
       --stack-name $STACK_NAME \
-      --template-url "$STACK_URL" \
+      --template-url $presigned_url \
       --enable-termination-protection \
       --parameters "ParameterKey=PipelineApprovalEmail,ParameterValue=" \
       --capabilities CAPABILITY_NAMED_IAM \
