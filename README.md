@@ -18,9 +18,17 @@ managed by [AWS Control Tower].
 the necessary strings into place, and convert both templates into yaml files. You
 will have the option to edit each file before deploying to AWS.
 
-[AWS Control Tower]: https://docs.aws.amazon.com/controltower/latest/userguide/what-is-control-tower.html
-[customizations for AWS Control Tower]: https://aws.amazon.com/solutions/implementations/customizations-for-aws-control-tower/
-
 ## Accounts
 
 See [accounts] for information about accounts provisioned by this template.
+
+
+## Troubleshooting
+
+Review the AWS documentation on [common errors] and possible solutions
+
+
+[AWS Control Tower]: https://docs.aws.amazon.com/controltower/latest/userguide/what-is-control-tower.html
+[customizations for AWS Control Tower]: https://aws.amazon.com/solutions/implementations/customizations-for-aws-control-tower/
+[common errors]: https://docs.aws.amazon.com/controltower/latest/userguide/troubleshooting.html
+[accounts]: accounts.md
